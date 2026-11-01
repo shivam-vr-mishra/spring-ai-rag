@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spring AI RAG</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:,">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="dot"></span>
+    <h1>Spring AI RAG</h1>
+  </div>
+  <div class="topbar-meta">
+    <span id="stat-provider" class="provider" title="Active chat provider">&hellip;</span>
+    <span class="sep">·</span>
+    <span id="stat-docs">0 documents</span>
+    <span class="sep">·</span>
+    <span id="stat-chunks">0 chunks</span>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ─────────────── LEFT: library ─────────────── -->
+  <aside class="panel library">
+    <h2>Documents</h2>
+
+    <div id="dropzone" class="dropzone" tabindex="0" role="button"
+         aria-label="Choose files or drop them here">
+      <svg viewBox="0 0 24 24" aria-hidden="true" class="dz-icon">
+        <path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+      </svg>
+      <p class="dz-main">Drop files here</p>
+      <p class="dz-sub">or click to browse &middot; PDF, DOCX, PPTX, TXT, HTML</p>
+      <input type="file" id="file-input" multiple hidden
+             accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md,.html,.htm,.csv,.json,.xml">
+    </div>
+
+    <div id="staged" class="staged" hidden>
+      <ul id="staged-list" class="staged-list"></ul>
+      <div class="staged-actions">
+        <button id="upload-btn" class="btn btn-primary">Upload</button>
+        <button id="clear-staged" class="btn btn-ghost">Clear</button>
+      </div>
+    </div>
+
+    <div id="upload-status" class="status" hidden></div>
+
+    <h3 class="library-heading">
+      Ingested
+      <button id="refresh-btn" class="icon-btn" title="Refresh">&#8635;</button>
+    </h3>
+    <ul id="doc-list" class="doc-list"></ul>
+    <p id="doc-empty" class="empty">Nothing ingested yet.</p>
+  </aside>
+
+  <!-- ─────────────── RIGHT: chat ─────────────── -->
+  <section class="panel chat">
+    <div class="chat-header">
+      <h2>Ask your documents</h2>
+      <div class="chat-actions">
+        <label class="scope">
+          <span>scope</span>
+          <select id="scope-select" title="Confine retrieval to one document">
+            <option value="">all documents</option>
+          </select>
+        </label>
+        <button id="toggle-settings" class="btn btn-ghost btn-sm">Retrieval settings</button>
+      </div>
+    </div>
+
+    <div id="settings" class="settings" hidden>
+      <label>
+        <span>topK <small>chunks sent to Claude</small></span>
+        <input type="number" id="topk" value="4" min="1" max="20" step="1">
+      </label>
+      <label>
+        <span>threshold <small>min similarity, 0&ndash;1</small></span>
+        <input type="number" id="threshold" value="0.1" min="0" max="1" step="0.05">
+      </label>
+      <p class="settings-note">
+        0.1 is calibrated for all-MiniLM-L6-v2. Thresholds are
+        <strong>not</strong> portable across embedding models &mdash; a borrowed
+        0.75 rejects everything here.
+      </p>
+    </div>
+
+    <div id="messages" class="messages">
+      <div class="welcome">
+        <h3>Upload a document, then ask about it</h3>
+        <p>Answers are generated only from retrieved text. Every reply shows the
+           chunks that grounded it, with similarity scores.</p>
+        <div class="examples" id="examples">
+          <button class="chip">How much is on-call pay?</button>
+          <button class="chip">When are we allowed to deploy?</button>
+          <button class="chip">What is a SEV-1?</button>
+          <button class="chip">What is the best topping for a pizza?</button>
+        </div>
+
+        <p class="examples-note">
+          That last one is deliberate &mdash; it is not in the handbook, so a
+          correctly configured system should decline it.
+        </p>
+        <p class="examples-note">
+          Ask <strong>&ldquo;summarize the company handbook&rdquo;</strong> and
+          retrieval switches automatically: overview questions read the whole
+          document, specific questions use the top matches. Every answer says
+          which path it took.
+        </p>
+      </div>
+    </div>
+
+    <form id="chat-form" class="composer" autocomplete="off">
+      <input type="text" id="question" placeholder="Ask a question&hellip;" required>
+      <button type="submit" id="send-btn" class="btn btn-primary">Send</button>
+    </form>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

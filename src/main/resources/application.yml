@@ -1,0 +1,208 @@
+spring:
+  application:
+    name: rag
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ragdb
+    username: rag
+    password: rag
+
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 25MB
+
+  ai:
+    # ───────────────────────────────────────────────────────────────────
+    #  PROVIDER SELECTION
+    #
+    #  Three chat starters are on the classpath. `model.chat` picks exactly
+    #  one; the other two auto-configurations stay dormant. Switch with a
+    #  profile:  --spring.profiles.active=anthropic   (or openai)
+    #
+    #  `model.embedding` MUST stay `transformers`. The OpenAI and Ollama
+    #  starters each ship their own EmbeddingModel; without this pin one of
+    #  them could supply embeddings at a different dimension than the 384
+    #  the pgvector table was created with.
+    # ───────────────────────────────────────────────────────────────────
+    model:
+      chat: ollama
+      embedding: transformers
+
+    # ---- GENERATION: Ollama (default — local, free, no API key) ----
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        # 3b, not 1b. Measured difference on the honesty test (a question the
+        # documents do not answer, so zero chunks are retrieved):
+        #   llama3.2:1b -> answered "Melted mozzarella cheese" from its own
+        #                  knowledge, ignoring the grounding instruction
+        #   llama3.2:3b -> "I can't answer your question as it's not present
+        #                  in the provided context"  (correct)
+        # The retrieval guard behaved identically in both cases. Only the
+        # model differed -- grounding is enforced by the generator too, not
+        # by the threshold alone.
+        model: llama3.2:3b
+      init:
+        # Downloads the model on first start if missing (~2GB).
+        # Set to `never` to pull manually: ollama pull llama3.2:3b
+        pull-model-strategy: when_missing
+        timeout: 10m
+        max-retries: 1
+
+    # ---- GENERATION: OpenAI ----
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        model: gpt-4o-mini
+
+    # ---- GENERATION: Anthropic ----
+    anthropic:
+      # Empty default so Layers 1-2 start with no credentials at all.
+      # Supply the real key either via the ANTHROPIC_API_KEY env var, or --
+      # more reliably -- in config/application.yml (gitignored), which
+      # is picked up automatically and does not depend on which shell started
+      # the process. See config/application.yml.example.
+      api-key: ${ANTHROPIC_API_KEY:}
+      chat:
+        # NOTE: in Spring AI 2.x the key is `chat.model`, NOT `chat.options.model`.
+        # Omitting it silently falls back to the claude-haiku-4-5 default.
+        model: claude-opus-4-8
+        max-tokens: 4096
+
+    # ---- EMBEDDINGS (local, in-process ONNX) ----
+    # sentence-transformers/all-MiniLM-L6-v2 -> 384 dimensions. No API key.
+    embedding:
+      transformer:
+        onnx:
+          # The copy inside spring-ai-transformers.jar is a 133-byte Git LFS
+          # POINTER, not the model. Left at its default, Spring AI downloads the
+          # real 90MB file from media.githubusercontent.com into a RANDOMLY
+          # named temp dir on every single startup -- so each restart re-downloads
+          # and dies if the network blips. Pointing at a local copy makes startup
+          # offline, fast, and reproducible.
+          # To re-fetch: comment this out, start once, then copy the model.onnx
+          # out of /tmp/spring-ai-model-cache*/ into models/all-MiniLM-L6-v2/.
+          model-uri: file:models/all-MiniLM-L6-v2/model.onnx
+        tokenizer:
+          # Pin this too. The jar's tokenizer.json is real (not an LFS pointer),
+          # but Spring AI's DEFAULT tokenizer URI still points at
+          # raw.githubusercontent.com and re-downloads it into a randomly named
+          # temp dir on every startup -- same failure mode as model.onnx, just
+          # a smaller file, so it only bites when the network is slow or down.
+          # Extracted from the jar via:
+          #   unzip -o -j spring-ai-transformers-2.0.2.jar \
+          #     onnx/all-MiniLM-L6-v2/tokenizer.json -d models/all-MiniLM-L6-v2/
+          uri: file:models/all-MiniLM-L6-v2/tokenizer.json
+          options:
+            # Avoids "ragged array" errors on inputs of differing length.
+            padding: true
+
+    # ---- STORAGE ----
+    vectorstore:
+      pgvector:
+        # Creates the `vector_store` table + the vector/hstore/uuid-ossp
+        # extensions on startup. Fine for a POC; manage with Flyway in prod.
+        initialize-schema: true
+        # MUST match the embedding model's output dimension (MiniLM = 384).
+        # A mismatch here fails at insert time, not at startup.
+        dimensions: 384
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+
+# Tune these and re-ingest to see the effect on retrieval quality.
+rag:
+  chunking:
+    chunk-size: 800
+    min-chunk-size-chars: 350
+
+  # Defaults for /api/chat. 0.1 was calibrated against this embedding model in
+  # Layer 2 -- it is NOT portable to other models. See docs/LAYER-2-RETRIEVAL.md.
+  retrieval:
+    top-k: 4
+    similarity-threshold: 0.1
+    # Upper bound when a question triggers the FULL_DOCUMENT strategy, which
+    # bypasses similarity search and sends every chunk. Exceeding it sets
+    # truncated=true on the response -- never silently partial.
+    max-full-document-chunks: 40
+
+  # ───────────────────────────────────────────────────────────────────────
+  #  INTENT CLASSIFICATION
+  #
+  #  Decides whether a question wants a whole document or one fact. These are
+  #  EXAMPLES, not patterns: the question is embedded and compared to them by
+  #  meaning, so phrasings absent from these lists still classify correctly
+  #  ("run me through the handbook" matches nothing here literally, and is
+  #  still recognised as an overview request).
+  #
+  #  Edit them for your domain -- no recompile, no code change. Add an example
+  #  whenever a real question routes the wrong way; that is cheaper and more
+  #  reliable than any rule.
+  #
+  #  Measured alternatives, on the same 20 questions:
+  #    these prototypes + embeddings  20/20 correct, ~5ms
+  #    llama3.2:3b asked to classify  16/20 correct, ~2s   (all 4 errors were
+  #                                   SPECIFIC mistaken for OVERVIEW)
+  #    corpus score alone, no examples  unusable: the two classes overlap
+  #                                   (0.258 vs 0.279)
+  # ───────────────────────────────────────────────────────────────────────
+  intent:
+    # Minimum similarity before OVERVIEW can be claimed. Below this a question
+    # resembles neither list and falls back to the safe default, SPECIFIC.
+    min-overview-similarity: 0.35
+    overview-examples:
+      - summarise this document
+      - give me an overview of the document
+      - what is in this file?
+      - what does this document contain?
+      - tell me everything in the handbook
+      - provide all the details of the document
+      - walk me through the whole policy
+      - what topics does this cover?
+      - explain the entire document
+      - list the sections of this file
+      - brief me on the contents
+      - what is this document about?
+    specific-examples:
+      - how much is the on-call stipend?
+      - when are deployments allowed?
+      - what is the payload capacity?
+      - who needs to approve a change?
+      - what is the response time for a SEV-1?
+      - can I connect a USB device?
+      - how long does the battery last?
+      - what is the password length requirement?
+      - is multi-factor authentication required?
+      - how many approvals does a deploy need?
+
+logging:
+  level:
+    com.example.rag: DEBUG
+
+# ─────────────────────────────────────────────────────────────────────────
+#  PROFILES — switch chat provider without editing this file:
+#
+#     ./mvnw spring-boot:run                                   (ollama, default)
+#     ./mvnw spring-boot:run -Dspring-boot.run.profiles=anthropic
+#     ./mvnw spring-boot:run -Dspring-boot.run.profiles=openai
+#
+#  Retrieval, embeddings and the vector store are identical in all three —
+#  only the generation step changes. That is the whole point of RAG: the
+#  retrieved context does the work, the model just phrases it.
+# ─────────────────────────────────────────────────────────────────────────
+---
+spring:
+  config:
+    activate:
+      on-profile: anthropic
+  ai:
+    model:
+      chat: anthropic
+---
+spring:
+  config:
+    activate:
+      on-profile: openai
+  ai:
+    model:
+      chat: openai

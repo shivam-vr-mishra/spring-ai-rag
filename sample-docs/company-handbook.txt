@@ -1,0 +1,41 @@
+ACME Robotics - Internal Engineering Handbook
+
+SECTION 1: DEPLOYMENT POLICY
+
+All production deployments at ACME Robotics must occur between 10:00 and 16:00
+on Tuesday, Wednesday, or Thursday. Friday deployments are strictly forbidden
+because the on-call rotation changes at 18:00 on Fridays and the incoming
+engineer will not have context on the change.
+
+Every deployment requires two approvals: one from the owning team's tech lead,
+and one from the Site Reliability Engineering on-call. The SRE approval may be
+waived for changes that touch only documentation or test files.
+
+SECTION 2: INCIDENT SEVERITY LEVELS
+
+SEV-1 means complete loss of service for all customers. The response time
+target is 5 minutes and it pages the entire on-call tree including the VP of
+Engineering.
+
+SEV-2 means degraded service or complete loss for a single large customer.
+The response time target is 15 minutes.
+
+SEV-3 means a minor bug with a known workaround. It is handled during normal
+business hours and does not page anyone.
+
+SECTION 3: THE ROBOT FLEET
+
+ACME operates three robot models in the field. The Hauler-7 is a warehouse
+transport unit with a 400 kilogram payload capacity and a 9 hour battery life.
+The Picker-3 is a shelf-picking arm with sub-millimeter precision, rated for
+2 million cycles before servicing. The Scout-1 is an inspection drone with a
+42 minute flight time and thermal imaging.
+
+The Hauler-7 firmware must never be updated over the air while the unit is
+carrying a payload. Doing so has caused three separate SEV-2 incidents.
+
+SECTION 4: ON-CALL COMPENSATION
+
+Engineers on the primary on-call rotation receive a stipend of 800 dollars per
+week. Secondary on-call receives 300 dollars per week. Any engineer paged more
+than four times in a single night is entitled to the following day off.

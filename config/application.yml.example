@@ -1,0 +1,17 @@
+# ─────────────────────────────────────────────────────────────────────────
+#  Copy this file to  config/application.yml  and paste your real key:
+#
+#      cp config/application.yml.example config/application.yml
+#      # then edit config/application.yml
+#
+#  Spring Boot reads ./config/ automatically and it overrides the packaged
+#  src/main/resources/application.yml -- no profile flag, no env var.
+#  This works no matter which shell or tool starts the app, unlike `export`,
+#  which only applies to the single shell it was typed in.
+#
+#  config/application.yml is gitignored. Never commit a real key.
+# ─────────────────────────────────────────────────────────────────────────
+spring:
+  ai:
+    anthropic:
+      api-key: sk-ant-api03-PASTE_YOUR_REAL_KEY_HERE

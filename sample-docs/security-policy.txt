@@ -1,0 +1,44 @@
+ACME Robotics - Information Security Policy
+
+SECTION 1: PASSWORD AND ACCESS REQUIREMENTS
+
+All employee accounts must use a password manager issued by the IT department.
+Passwords must be at least 16 characters. Password rotation is not required;
+rotation on a fixed schedule was discontinued in 2024 because it encouraged
+weak, incremental passwords.
+
+Multi-factor authentication is mandatory for every system that touches
+customer data. Hardware security keys are required for anyone with production
+database access. SMS-based codes are explicitly forbidden as a second factor.
+
+SECTION 2: DATA CLASSIFICATION
+
+ACME classifies all data into three tiers.
+
+RESTRICTED data includes customer robot telemetry, payment details, and
+employee records. It may never leave ACME-controlled infrastructure and must
+be encrypted at rest using AES-256.
+
+INTERNAL data includes engineering documentation, roadmaps, and meeting notes.
+It may be stored in approved cloud services but must not be shared externally.
+
+PUBLIC data includes marketing material and published documentation. No
+restrictions apply.
+
+SECTION 3: LAPTOP AND DEVICE RULES
+
+Full-disk encryption is mandatory on every laptop. Lost or stolen devices must
+be reported to security@acme.example within one hour of discovery, regardless
+of the time of day or day of week.
+
+Personal USB storage devices may not be connected to work laptops. This is
+enforced technically through endpoint management, not merely by policy.
+
+SECTION 4: VENDOR AND THIRD-PARTY ACCESS
+
+Any third-party vendor requiring access to RESTRICTED data must complete a
+security review before access is granted. The review takes approximately three
+weeks and requires a signed data processing agreement.
+
+Vendor access is time-boxed to 90 days and must be explicitly renewed. Access
+that is not renewed expires automatically.
